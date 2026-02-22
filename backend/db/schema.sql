@@ -36,6 +36,39 @@ CREATE INDEX IF NOT EXISTS idx_projects_process_type ON projects (process_type);
 CREATE INDEX IF NOT EXISTS idx_projects_state        ON projects (state);
 CREATE INDEX IF NOT EXISTS idx_projects_agency       ON projects (agency);
 
+-- FTS5 full-text index over title + agency + state.
+-- content='projects' keeps the index in sync with the base table.
+-- Rebuild after bulk ingest: INSERT INTO projects_fts(projects_fts) VALUES('rebuild');
+CREATE VIRTUAL TABLE IF NOT EXISTS projects_fts USING fts5(
+    id    UNINDEXED,
+    title,
+    agency,
+    state,
+    content='projects',
+    content_rowid='rowid'
+);
+
+-- Triggers to keep FTS index current on every write
+CREATE TRIGGER IF NOT EXISTS trg_projects_fts_insert
+AFTER INSERT ON projects BEGIN
+    INSERT INTO projects_fts(rowid, id, title, agency, state)
+    VALUES (new.rowid, new.id, new.title, new.agency, new.state);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_projects_fts_delete
+AFTER DELETE ON projects BEGIN
+    INSERT INTO projects_fts(projects_fts, rowid, id, title, agency, state)
+    VALUES ('delete', old.rowid, old.id, old.title, old.agency, old.state);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_projects_fts_update
+AFTER UPDATE ON projects BEGIN
+    INSERT INTO projects_fts(projects_fts, rowid, id, title, agency, state)
+    VALUES ('delete', old.rowid, old.id, old.title, old.agency, old.state);
+    INSERT INTO projects_fts(rowid, id, title, agency, state)
+    VALUES (new.rowid, new.id, new.title, new.agency, new.state);
+END;
+
 -- ---------------------------------------------------------------------------
 -- documents
 -- ---------------------------------------------------------------------------

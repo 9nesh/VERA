@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VERA — Permitting Stuckness Radar</title>
+
+  <!-- D3 + TopoJSON for the map -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <!-- Chart.js for bar charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #080d18;
+      --surface:  #0d1829;
+      --surface2: #111f36;
+      --border:   #1e3050;
+      --border2:  #243a5a;
+      --teal:     #0d9488;
+      --teal-lit: #14b8a6;
+      --amber:    #f59e0b;
+      --red:      #ef4444;
+      --red-dark: #b91c1c;
+      --orange:   #f97316;
+      --blue:     #3b82f6;
+      --green:    #22c55e;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --muted2:   #94a3b8;
+      --radar-hi: #ef4444;
+      --radar-md: #f97316;
+      --radar-lo: #f59e0b;
+      --radar-ok: #22c55e;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(8,13,24,0.94);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand { display: flex; align-items: center; gap: .75rem; text-decoration: none; color: var(--text); }
+    .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.5)} }
+    .brand-name { font-size: 1.1rem; font-weight: 700; letter-spacing: .02em; }
+    .brand-sub { font-size: .75rem; color: var(--muted2); margin-left: .25rem; }
+    .header-back { font-size: .85rem; color: var(--muted2); text-decoration: none; display: flex; align-items: center; gap: .4rem; }
+    .header-back:hover { color: var(--text); }
+
+    /* ── Page layout ── */
+    main { max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    .page-title {
+      font-size: 1.75rem; font-weight: 800; margin-bottom: .3rem;
+      background: linear-gradient(135deg, #e2e8f0, var(--teal-lit));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .page-sub { color: var(--muted2); font-size: .9rem; margin-bottom: 2rem; }
+
+    /* ── KPI strip ── */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem; margin-bottom: 2rem;
+    }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem 1rem; text-align: center;
+      transition: border-color .2s;
+    }
+    .kpi-card:hover { border-color: var(--border2); }
+    .kpi-value { font-size: 2rem; font-weight: 800; line-height: 1; }
+    .kpi-label { font-size: .72rem; color: var(--muted2); margin-top: .35rem; text-transform: uppercase; letter-spacing: .07em; }
+    .kpi-card.red .kpi-value   { color: var(--red); }
+    .kpi-card.amber .kpi-value { color: var(--amber); }
+    .kpi-card.teal .kpi-value  { color: var(--teal-lit); }
+    .kpi-card.orange .kpi-value{ color: var(--orange); }
+    .kpi-card.blue .kpi-value  { color: var(--blue); }
+
+    /* ── Two-column grid (map + panel) ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    @media(max-width:900px){ .main-grid { grid-template-columns: 1fr; } }
+
+    /* ── Map card ── */
+    .map-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .card-header {
+      padding: .9rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .card-title { font-size: .95rem; font-weight: 700; }
+    .card-body { padding: 1.25rem; }
+
+    #map-svg { width: 100%; height: 380px; }
+
+    .map-legend {
+      display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .75rem;
+    }
+    .legend-item { display: flex; align-items: center; gap: .35rem; font-size: .75rem; color: var(--muted2); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* ── Copilot panel ── */
+    .copilot-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; display: flex; flex-direction: column;
+    }
+    .copilot-body { padding: 1.25rem; flex: 1; overflow-y: auto; max-height: 460px; }
+    .copilot-intro { font-size: .82rem; color: var(--muted2); margin-bottom: 1rem; line-height: 1.6; }
+    .narrative-text {
+      font-size: .85rem; line-height: 1.75; color: var(--text);
+      white-space: pre-wrap; min-height: 80px;
+    }
+    .copilot-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--border); }
+    .copilot-input {
+      width: 100%; display: flex; gap: .5rem;
+    }
+    .copilot-input input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; padding: .55rem .8rem; font-size: .82rem;
+      color: var(--text); outline: none;
+    }
+    .copilot-input input:focus { border-color: var(--teal); }
+    .copilot-input input::placeholder { color: var(--muted); }
+    .btn-narrate {
+      background: var(--teal); color: #fff; border: none;
+      border-radius: 8px; padding: .55rem 1rem;
+      font-size: .82rem; font-weight: 600; cursor: pointer;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+    .btn-narrate:hover { background: var(--teal-lit); }
+    .btn-narrate:disabled { background: var(--muted); cursor: not-allowed; }
+
+    .thinking {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .8rem; color: var(--muted2);
+    }
+    .thinking-dots span {
+      display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--teal); margin: 0 1px;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: .2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: .4s; }
+    @keyframes blink { 0%,100%{opacity:.2} 50%{opacity:1} }
+
+    /* ── Bottom charts row ── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    @media(max-width:760px){ .charts-row { grid-template-columns: 1fr; } }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .chart-canvas-wrap { padding: 1rem 1.25rem; }
+    canvas { max-height: 260px; }
+
+    /* ── Projects table ── */
+    .projects-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden; margin-bottom: 2rem;
+    }
+    .filter-bar {
+      display: flex; gap: .75rem; flex-wrap: wrap; padding: .9rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .filter-select, .filter-input {
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; padding: .45rem .75rem; font-size: .8rem;
+      color: var(--text); outline: none;
+    }
+    .filter-select:focus, .filter-input:focus { border-color: var(--teal); }
+    .filter-select option { background: var(--surface); }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    thead th {
+      text-align: left; font-size: .72rem; color: var(--muted2);
+      text-transform: uppercase; letter-spacing: .07em;
+      padding: .7rem 1rem; border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: .65rem 1rem; vertical-align: middle; }
+    .td-name { max-width: 280px; }
+    .td-name span { display: block; font-weight: 600; line-height: 1.3; }
+    .td-name small { color: var(--muted2); font-size: .75rem; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      font-size: .7rem; font-weight: 700; padding: .2rem .55rem;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .badge.high  { background: rgba(239,68,68,.15); color: var(--red); }
+    .badge.at    { background: rgba(249,115,22,.15); color: var(--orange); }
+    .badge.mon   { background: rgba(245,158,11,.15); color: var(--amber); }
+    .badge.ok    { background: rgba(34,197,94,.15);  color: var(--green); }
+    .badge.paused    { background: rgba(239,68,68,.12); color: #fca5a5; }
+    .badge.progress  { background: rgba(59,130,246,.12); color: #93c5fd; }
+    .badge.planned   { background: rgba(245,158,11,.12); color: #fde68a; }
+    .badge.complete  { background: rgba(34,197,94,.12); color: #86efac; }
+    .badge.cancelled { background: rgba(100,116,139,.12); color: #94a3b8; }
+    .badge.changed   { background: rgba(168,85,247,.12); color: #d8b4fe; }
+
+    .score-bar-wrap { width: 80px; }
+    .score-bar {
+      height: 6px; border-radius: 3px; background: var(--border2);
+      overflow: hidden;
+    }
+    .score-bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+    .score-val { font-size: .75rem; margin-top: .2rem; font-weight: 600; }
+
+    .pagination {
+      display: flex; align-items: center; gap: 1rem;
+      padding: .85rem 1.25rem; border-top: 1px solid var(--border);
+      font-size: .8rem; color: var(--muted2);
+    }
+    .btn-page {
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); border-radius: 6px; padding: .3rem .8rem;
+      font-size: .78rem; cursor: pointer;
+    }
+    .btn-page:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-page:not(:disabled):hover { border-color: var(--teal); color: var(--teal-lit); }
+
+    /* ── Tooltip ── */
+    .tooltip {
+      position: fixed; z-index: 999;
+      background: rgba(13,24,41,.97);
+      border: 1px solid var(--border2);
+      border-radius: 10px; padding: .75rem 1rem;
+      font-size: .8rem; pointer-events: none;
+      max-width: 240px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+      display: none;
+    }
+    .tooltip-title { font-weight: 700; margin-bottom: .35rem; }
+    .tooltip-row { display: flex; justify-content: space-between; gap: .75rem; color: var(--muted2); margin-top: .2rem; }
+    .tooltip-row span:last-child { color: var(--text); font-weight: 600; }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      display: inline-block; width: 20px; height: 20px;
+      border: 2px solid var(--border2); border-top-color: var(--teal);
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      display: flex; align-items: center; justify-content: center;
+      gap: .75rem; color: var(--muted2); font-size: .85rem;
+      padding: 3rem;
+    }
+
+    /* ── Map state paths ── */
+    .state-path {
+      stroke: #1e3050; stroke-width: .5;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .state-path:hover { opacity: .85; stroke: var(--teal-lit); stroke-width: 1.5; }
+
+    /* ── Metric selector tabs ── */
+    .metric-tabs { display: flex; gap: .5rem; }
+    .metric-tab {
+      font-size: .72rem; padding: .3rem .65rem; border-radius: 6px;
+      cursor: pointer; border: 1px solid var(--border2);
+      color: var(--muted2); background: transparent; transition: all .15s;
+    }
+    .metric-tab.active { border-color: var(--teal); color: var(--teal-lit); background: rgba(13,148,136,.1); }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header>
+    <a class="brand" href="/">
+      <div class="brand-dot"></div>
+      <span class="brand-name">VERA</span>
+      <span class="brand-sub">Permitting Stuckness Radar</span>
+    </a>
+    <a class="header-back" href="/">← Back to Observatory</a>
+  </header>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <main>
+    <h1 class="page-title">Permitting Stuckness Radar</h1>
+    <p class="page-sub">
+      Live map of where FAST-41 projects are drifting, why they look stuck, and how they compare to peers — narrated by your OPEF copilot.
+    </p>
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip" id="kpi-strip">
+      <div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div> Loading…</div>
+    </div>
+
+    <!-- Map + Copilot -->
+    <div class="main-grid">
+      <div class="map-card">
+        <div class="card-header">
+          <span class="card-title">Stuckness by State</span>
+          <div class="metric-tabs">
+            <button class="metric-tab active" data-metric="avg_stuckness">Avg Score</button>
+            <button class="metric-tab" data-metric="stuck_pct">% Paused</button>
+            <button class="metric-tab" data-metric="total">Projects</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <svg id="map-svg"></svg>
+          <div class="map-legend" id="map-legend"></div>
+        </div>
+      </div>
+
+      <div class="copilot-card">
+        <div class="card-header">
+          <span class="card-title">🤖 OPEF Copilot</span>
+        </div>
+        <div class="copilot-body" id="copilot-body">
+          <p class="copilot-intro">
+            Ask a question or click "Narrate" to get an AI-powered analysis of the current permitting landscape.
+          </p>
+          <div id="narrative-area">
+            <p class="narrative-text" id="narrative-text" style="color:var(--muted)">
+              Waiting for data…
+            </p>
+          </div>
+        </div>
+        <div class="copilot-footer">
+          <div class="copilot-input">
+            <input type="text" id="copilot-q" placeholder="Ask about stuck projects…"
+                   onkeydown="if(event.key==='Enter')narrate()" />
+            <button class="btn-narrate" id="btn-narrate" onclick="narrate()">Narrate</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="card-header"><span class="card-title">Stuckness by Sector</span></div>
+        <div class="chart-canvas-wrap"><canvas id="sector-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-header"><span class="card-title">Top Agencies by Stuckness</span></div>
+        <div class="chart-canvas-wrap"><canvas id="agency-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Projects table -->
+    <div class="projects-card">
+      <div class="card-header">
+        <span class="card-title">Project List</span>
+        <span id="project-count" style="font-size:.78rem;color:var(--muted2)"></span>
+      </div>
+      <div class="filter-bar">
+        <select class="filter-select" id="filter-status" onchange="applyFilters()">
+          <option value="">All Statuses</option>
+          <option value="Paused">Paused</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Planned">Planned</option>
+          <option value="Class of Action Changed">Class of Action Changed</option>
+          <option value="Complete">Complete</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+        <select class="filter-select" id="filter-state" onchange="applyFilters()">
+          <option value="">All States</option>
+        </select>
+        <select class="filter-select" id="filter-sector" onchange="applyFilters()">
+          <option value="">All Sectors</option>
+        </select>
+        <input class="filter-input" id="filter-search" placeholder="Search project name…"
+               oninput="applyFilters()" style="min-width:180px" />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Status</th>
+              <th>Risk Level</th>
+              <th>Stuckness</th>
+              <th>Sector</th>
+              <th>State</th>
+              <th>Bureau</th>
+            </tr>
+          </thead>
+          <tbody id="project-tbody">
+            <tr><td colspan="7"><div class="loading-overlay"><div class="spinner"></div> Loading projects…</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button class="btn-page" id="btn-prev" onclick="changePage(-1)" disabled>← Prev</button>
+        <span id="page-info" style="flex:1;text-align:center"></span>
+        <button class="btn-page" id="btn-next" onclick="changePage(1)">Next →</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  // ─────────────────────────────────────────────────────────────────────────
+  // State
+  // ─────────────────────────────────────────────────────────────────────────
+  let stateData = [];
+  let sectorData = [];
+  let agencyData = [];
+  let allProjects = [];
+  let filteredProjects = [];
+  let overviewData = {};
+
+  let currentPage = 0;
+  const PAGE_SIZE = 25;
+  let mapMetric = 'avg_stuckness';
+  let sectorChart, agencyChart;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Boot
+  // ─────────────────────────────────────────────────────────────────────────
+  async function boot() {
+    try {
+      const [ov, states, sectors, agencies, projects] = await Promise.all([
+        fetch('/api/radar/overview').then(r => r.json()),
+        fetch('/api/radar/by-state').then(r => r.json()),
+        fetch('/api/radar/by-sector').then(r => r.json()),
+        fetch('/api/radar/by-agency').then(r => r.json()),
+        fetch('/api/radar/projects?limit=500').then(r => r.json()),
+      ]);
+      overviewData = ov;
+      stateData = states;
+      sectorData = sectors;
+      agencyData = agencies;
+      allProjects = projects.projects;
+
+      renderKPIs(ov);
+      renderMap(states);
+      renderSectorChart(sectors);
+      renderAgencyChart(agencies);
+      populateFilters(allProjects);
+      filteredProjects = allProjects;
+      renderTable();
+
+      // Auto-narrate after a short delay
+      setTimeout(() => autoNarrate(ov, sectors, agencies), 800);
+    } catch(e) {
+      console.error('Boot error', e);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // KPIs
+  // ─────────────────────────────────────────────────────────────────────────
+  function renderKPIs(ov) {
+    const strip = document.getElementById('kpi-strip');
+    const rb = ov.risk_breakdown || {};
+    strip.innerHTML = `
+      <div class="kpi-card blue">
+        <div class="kpi-value">${ov.total_projects.toLocaleString()}</div>
+        <div class="kpi-label">Total Projects</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-value">${ov.stuck_projects}</div>
+        <div class="kpi-label">Paused (${ov.stuck_pct}%)</div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="kpi-value">${ov.in_progress}</div>
+        <div class="kpi-label">In Progress</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-value">${(ov.avg_stuckness_score * 100).toFixed(0)}%</div>
+        <div class="kpi-label">Avg Stuckness</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-value">${rb.high_risk || 0}</div>
+        <div class="kpi-label">High Risk</div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="kpi-value">${rb.at_risk || 0}</div>
+        <div class="kpi-label">At Risk</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-value">${rb.monitor || 0}</div>
+        <div class="kpi-label">Monitor</div>
+      </div>
+      <div class="kpi-card teal">
+        <div class="kpi-value">${rb.on_track || 0}</div>
+        <div class="kpi-label">On Track</div>
+      </div>
+    `;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Map
+  // ─────────────────────────────────────────────────────────────────────────
+  const stateByAbbrev = {};
+  let usGeo = null;
+
+  async function renderMap(states) {
+    states.forEach(s => stateByAbbrev[s.state] = s);
+
+    const svg = d3.select('#map-svg');
+    const box = document.getElementById('map-svg').getBoundingClientRect();
+    const W = box.width || 700, H = 380;
+    svg.attr('viewBox', `0 0 ${W} ${H}`);
+
+    // Load US topojson
+    try {
+      usGeo = await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
+    } catch(e) {
+      svg.append('text').attr('x', W/2).attr('y', H/2)
+        .attr('text-anchor','middle').attr('fill','#64748b')
+        .text('Map unavailable (network)');
+      return;
+    }
+
+    const projection = d3.geoAlbersUsa().fitSize([W, H], topojson.feature(usGeo, usGeo.objects.states));
+    const path = d3.geoPath().projection(projection);
+
+    const stateFeatures = topojson.feature(usGeo, usGeo.objects.states);
+
+    // FIPS → abbrev lookup
+    const fipsToAbbrev = getFIPSMap();
+
+    drawMap(svg, stateFeatures, path, fipsToAbbrev, W, H);
+    renderLegend();
+
+    // Metric tab wiring
+    document.querySelectorAll('.metric-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.metric-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mapMetric = btn.dataset.metric;
+        drawMap(svg, stateFeatures, path, fipsToAbbrev, W, H);
+        renderLegend();
+      });
+    });
+  }
+
+  function drawMap(svg, features, path, fipsToAbbrev, W, H) {
+    svg.selectAll('.state-path').remove();
+
+    const values = stateData.map(s => s[mapMetric]).filter(v => v > 0);
+    const maxVal = d3.max(values) || 1;
+
+    // Color scale
+    let colorScale;
+    if (mapMetric === 'total') {
+      colorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, maxVal]);
+    } else {
+      // Red for stuckness/paused
+      colorScale = d3.scaleSequential(d => {
+        const t = d / maxVal;
+        return d3.interpolateRgb('#1e3050', '#ef4444')(t);
+      }).domain([0, maxVal]);
+    }
+
+    svg.selectAll('.state-path')
+      .data(features.features)
+      .join('path')
+      .attr('class', 'state-path')
+      .attr('d', path)
+      .attr('fill', d => {
+        const abbrev = fipsToAbbrev[d.id];
+        const sd = stateByAbbrev[abbrev];
+        if (!sd) return '#1e3050';
+        const val = sd[mapMetric] || 0;
+        return colorScale(val);
+      })
+      .on('mousemove', function(event, d) {
+        const abbrev = fipsToAbbrev[d.id];
+        const sd = stateByAbbrev[abbrev];
+        if (!sd) return;
+        showTooltip(event, `
+          <div class="tooltip-title">${abbrev} — ${sd.total} projects</div>
+          <div class="tooltip-row"><span>Avg Stuckness</span><span>${(sd.avg_stuckness*100).toFixed(0)}%</span></div>
+          <div class="tooltip-row"><span>Paused</span><span>${sd.paused} (${sd.stuck_pct}%)</span></div>
+          <div class="tooltip-row"><span>In Progress</span><span>${sd.in_progress}</span></div>
+          <div class="tooltip-row"><span>Complete</span><span>${sd.complete}</span></div>
+          <div class="tooltip-row"><span>High Risk</span><span>${sd.high_risk}</span></div>
+        `);
+      })
+      .on('mouseleave', hideTooltip)
+      .on('click', (event, d) => {
+        const abbrev = fipsToAbbrev[d.id];
+        if (!abbrev) return;
+        document.getElementById('filter-state').value = abbrev;
+        applyFilters();
+        document.getElementById('project-tbody').scrollIntoView({behavior:'smooth', block:'start'});
+      });
+  }
+
+  function renderLegend() {
+    const legend = document.getElementById('map-legend');
+    if (mapMetric === 'avg_stuckness') {
+      legend.innerHTML = `
+        <span style="font-size:.72rem;color:var(--muted2);margin-right:.25rem">Avg Stuckness:</span>
+        <div class="legend-item"><div class="legend-dot" style="background:#1e3050"></div>Low</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#7f1d1d"></div>Medium</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>High</div>
+      `;
+    } else if (mapMetric === 'stuck_pct') {
+      legend.innerHTML = `
+        <span style="font-size:.72rem;color:var(--muted2);margin-right:.25rem">% Paused:</span>
+        <div class="legend-item"><div class="legend-dot" style="background:#1e3050"></div>0%</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>High</div>
+      `;
+    } else {
+      legend.innerHTML = `
+        <span style="font-size:.72rem;color:var(--muted2);margin-right:.25rem">Project Count:</span>
+        <div class="legend-item"><div class="legend-dot" style="background:#1e3050"></div>Few</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Many</div>
+      `;
+    }
+    legend.innerHTML += `<div class="legend-item" style="margin-left:auto;font-style:italic">Click a state to filter</div>`;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Sector chart
+  // ─────────────────────────────────────────────────────────────────────────
+  function renderSectorChart(sectors) {
+    const top = sectors.slice(0, 10);
+    const labels = top.map(s => s.sector.length > 22 ? s.sector.slice(0,20)+'…' : s.sector);
+    const scores = top.map(s => +(s.avg_stuckness * 100).toFixed(1));
+    const pausedPct = top.map(s => s.stuck_pct);
+
+    const ctx = document.getElementById('sector-chart').getContext('2d');
+    if (sectorChart) sectorChart.destroy();
+    sectorChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Avg Stuckness Score (%)',
+            data: scores,
+            backgroundColor: scores.map(s => s > 70 ? 'rgba(239,68,68,.7)' : s > 50 ? 'rgba(249,115,22,.7)' : 'rgba(245,158,11,.7)'),
+            borderRadius: 4,
+            yAxisID: 'y',
+          },
+          {
+            label: '% Paused',
+            data: pausedPct,
+            backgroundColor: 'rgba(239,68,68,.25)',
+            borderColor: 'rgba(239,68,68,.6)',
+            borderWidth: 1,
+            type: 'line',
+            yAxisID: 'y1',
+            tension: 0.3,
+            pointRadius: 3,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e3050' } },
+          y: {
+            ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' },
+            grid: { color: '#1e3050' },
+            title: { display: true, text: 'Stuckness Score', color: '#64748b', font: { size: 10 } }
+          },
+          y1: {
+            position: 'right',
+            ticks: { color: '#f87171', font: { size: 10 }, callback: v => v + '%' },
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: '% Paused', color: '#f87171', font: { size: 10 } }
+          }
+        }
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Agency chart
+  // ─────────────────────────────────────────────────────────────────────────
+  function renderAgencyChart(agencies) {
+    const top = agencies.slice(0, 10);
+    const labels = top.map(a => a.bureau.length > 26 ? a.bureau.slice(0,24)+'…' : a.bureau);
+    const scores = top.map(a => +(a.avg_stuckness * 100).toFixed(1));
+    const paused = top.map(a => a.paused);
+
+    const ctx = document.getElementById('agency-chart').getContext('2d');
+    if (agencyChart) agencyChart.destroy();
+    agencyChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Avg Stuckness (%)',
+            data: scores,
+            backgroundColor: scores.map(s => s > 70 ? 'rgba(239,68,68,.7)' : s > 50 ? 'rgba(249,115,22,.7)' : 'rgba(59,130,246,.7)'),
+            borderRadius: 4,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Paused Count',
+            data: paused,
+            backgroundColor: 'rgba(239,68,68,.25)',
+            borderColor: 'rgba(239,68,68,.6)',
+            borderWidth: 1,
+            type: 'line',
+            yAxisID: 'y1',
+            tension: 0.3,
+            pointRadius: 3,
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+        scales: {
+          y: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: '#1e3050' } },
+          x: {
+            ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' },
+            grid: { color: '#1e3050' },
+          },
+          y1: {
+            position: 'right',
+            ticks: { color: '#f87171', font: { size: 10 } },
+            grid: { drawOnChartArea: false },
+          }
+        }
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Filters & table
+  // ─────────────────────────────────────────────────────────────────────────
+  function populateFilters(projects) {
+    const states = [...new Set(projects.map(p => p.state).filter(Boolean))].sort();
+    const sectors = [...new Set(projects.map(p => p.sector).filter(Boolean))].sort();
+    const stateEl = document.getElementById('filter-state');
+    states.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; stateEl.appendChild(o); });
+    const sectorEl = document.getElementById('filter-sector');
+    sectors.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sectorEl.appendChild(o); });
+  }
+
+  function applyFilters() {
+    const status = document.getElementById('filter-status').value;
+    const state = document.getElementById('filter-state').value;
+    const sector = document.getElementById('filter-sector').value;
+    const search = document.getElementById('filter-search').value.toLowerCase();
+
+    filteredProjects = allProjects.filter(p => {
+      if (status && p.status !== status) return false;
+      if (state && p.state !== state) return false;
+      if (sector && p.sector !== sector) return false;
+      if (search && !p.name.toLowerCase().includes(search)) return false;
+      return true;
+    });
+    currentPage = 0;
+    renderTable();
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('project-tbody');
+    const total = filteredProjects.length;
+    document.getElementById('project-count').textContent = `${total.toLocaleString()} projects`;
+
+    const start = currentPage * PAGE_SIZE;
+    const page = filteredProjects.slice(start, start + PAGE_SIZE);
+
+    if (page.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted)">No projects match your filters.</td></tr>`;
+    } else {
+      tbody.innerHTML = page.map(p => {
+        const riskClass = { 'High Risk':'high','At Risk':'at','Monitor':'mon','On Track':'ok' }[p.stuckness_label] || 'ok';
+        const statusClass = {
+          'Paused':'paused','In Progress':'progress','Planned':'planned',
+          'Complete':'complete','Cancelled':'cancelled','Class of Action Changed':'changed'
+        }[p.status] || '';
+        const scoreColor = p.stuckness_score > .8 ? '#ef4444' : p.stuckness_score > .5 ? '#f97316' : p.stuckness_score > .25 ? '#f59e0b' : '#22c55e';
+        const scorePct = (p.stuckness_score * 100).toFixed(0);
+        return `
+          <tr>
+            <td class="td-name">
+              <span title="${escHtml(p.name)}">${escHtml(p.name.length > 55 ? p.name.slice(0,53)+'…' : p.name)}</span>
+              <small>${escHtml(p.city || '')}${p.city && p.state ? ', ' : ''}${escHtml(p.state || '')}</small>
+            </td>
+            <td><span class="badge ${statusClass}">${escHtml(p.status)}</span></td>
+            <td><span class="badge ${riskClass}">${escHtml(p.stuckness_label)}</span></td>
+            <td>
+              <div class="score-bar-wrap">
+                <div class="score-bar"><div class="score-bar-fill" style="width:${scorePct}%;background:${scoreColor}"></div></div>
+                <div class="score-val" style="color:${scoreColor}">${scorePct}%</div>
+              </div>
+            </td>
+            <td style="color:var(--muted2);font-size:.78rem">${escHtml(p.sector)}</td>
+            <td style="font-size:.8rem">${escHtml(p.state)}</td>
+            <td style="color:var(--muted2);font-size:.75rem;max-width:180px" title="${escHtml(p.bureau)}">${escHtml(p.bureau.length > 28 ? p.bureau.slice(0,26)+'…' : p.bureau)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    document.getElementById('page-info').textContent = `Page ${currentPage + 1} of ${totalPages || 1}`;
+    document.getElementById('btn-prev').disabled = currentPage === 0;
+    document.getElementById('btn-next').disabled = currentPage >= totalPages - 1;
+  }
+
+  function changePage(delta) {
+    const total = filteredProjects.length;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    currentPage = Math.max(0, Math.min(totalPages - 1, currentPage + delta));
+    renderTable();
+    document.querySelector('.projects-card').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LLM Copilot
+  // ─────────────────────────────────────────────────────────────────────────
+  async function autoNarrate(ov, sectors, agencies) {
+    const topStuck = (agencies || []).slice(0, 3).map(a =>
+      `${a.bureau}: ${a.paused} paused, ${(a.avg_stuckness*100).toFixed(0)}% avg stuckness`
+    ).join('; ');
+    const topSectors = (sectors || []).slice(0, 3).map(s =>
+      `${s.sector}: ${(s.avg_stuckness*100).toFixed(0)}% avg stuckness, ${s.stuck_pct}% paused`
+    ).join('; ');
+    const context = JSON.stringify({
+      total_projects: ov.total_projects,
+      paused: ov.stuck_projects,
+      paused_pct: ov.stuck_pct,
+      in_progress: ov.in_progress,
+      avg_stuckness_pct: (ov.avg_stuckness_score * 100).toFixed(1),
+      risk_breakdown: ov.risk_breakdown,
+      top_stuck_agencies: topStuck,
+      top_sectors_by_stuckness: topSectors,
+    }, null, 2);
+    await narrate(context, null);
+  }
+
+  async function narrate(contextOverride, questionOverride) {
+    const btn = document.getElementById('btn-narrate');
+    const textarea = document.getElementById('narrative-text');
+    const q = questionOverride !== undefined ? questionOverride : (document.getElementById('copilot-q').value.trim() || null);
+
+    btn.disabled = true;
+    btn.textContent = 'Thinking…';
+    textarea.innerHTML = `
+      <div class="thinking">
+        <div class="thinking-dots"><span></span><span></span><span></span></div>
+        OPEF copilot is analyzing…
+      </div>
+    `;
+
+    let context = contextOverride;
+    if (!context) {
+      // Build from current filter state
+      const visible = filteredProjects.slice(0, 50);
+      const byStatus = {};
+      visible.forEach(p => { byStatus[p.status] = (byStatus[p.status]||0)+1; });
+      const topStuck = visible.filter(p => p.stuckness_label === 'High Risk').slice(0, 5)
+        .map(p => `${p.name} (${p.state}, ${p.sector})`);
+      context = JSON.stringify({
+        filter_applied: {
+          status: document.getElementById('filter-status').value || 'all',
+          state: document.getElementById('filter-state').value || 'all',
+          sector: document.getElementById('filter-sector').value || 'all',
+        },
+        matching_projects: filteredProjects.length,
+        by_status: byStatus,
+        top_high_risk_projects: topStuck,
+        overall: {
+          total: overviewData.total_projects,
+          paused: overviewData.stuck_projects,
+          paused_pct: overviewData.stuck_pct,
+        }
+      }, null, 2);
+    }
+
+    try {
+      const resp = await fetch('/api/radar/narrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context, question: q }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        textarea.textContent = '⚠ ' + (data.detail || 'LLM unavailable');
+      } else {
+        textarea.textContent = data.narrative;
+      }
+    } catch(e) {
+      textarea.textContent = '⚠ Could not reach copilot: ' + e.message;
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Narrate';
+    document.getElementById('copilot-q').value = '';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Tooltip
+  // ─────────────────────────────────────────────────────────────────────────
+  const tip = document.getElementById('tooltip');
+  function showTooltip(event, html) {
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    moveTip(event);
+  }
+  function moveTip(event) {
+    let x = event.clientX + 14, y = event.clientY - 10;
+    if (x + 260 > window.innerWidth) x = event.clientX - 270;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+  function hideTooltip() { tip.style.display = 'none'; }
+  document.addEventListener('mousemove', e => { if (tip.style.display !== 'none') moveTip(e); });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Utils
+  // ─────────────────────────────────────────────────────────────────────────
+  function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function getFIPSMap() {
+    // FIPS numeric ID → USPS 2-letter state code
+    return {
+      "1":"AL","2":"AK","4":"AZ","5":"AR","6":"CA","8":"CO","9":"CT",
+      "10":"DE","11":"DC","12":"FL","13":"GA","15":"HI","16":"ID",
+      "17":"IL","18":"IN","19":"IA","20":"KS","21":"KY","22":"LA",
+      "23":"ME","24":"MD","25":"MA","26":"MI","27":"MN","28":"MS",
+      "29":"MO","30":"MT","31":"NE","32":"NV","33":"NH","34":"NJ",
+      "35":"NM","36":"NY","37":"NC","38":"ND","39":"OH","40":"OK",
+      "41":"OR","42":"PA","44":"RI","45":"SC","46":"SD","47":"TN",
+      "48":"TX","49":"UT","50":"VT","51":"VA","53":"WA","54":"WV",
+      "55":"WI","56":"WY","72":"PR"
+    };
+  }
+
+  // Boot
+  boot();
+  </script>
+</body>
+</html>

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VERA Observatory — NEPA Data Dashboard</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080d18;
+      --surface:   #0d1829;
+      --surface2:  #111f36;
+      --border:    #1e3050;
+      --border2:   #243a5a;
+      --teal:      #0d9488;
+      --teal-lit:  #14b8a6;
+      --amber:     #f59e0b;
+      --red:       #ef4444;
+      --blue:      #3b82f6;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --muted2:    #94a3b8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(8,13,24,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .header-brand svg { color: var(--teal); }
+    .header-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .header-subtitle {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .back-link {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--muted2);
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--text); }
+
+    /* ── Page wrap ── */
+    .page { max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* ── Hero banner ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #e2e8f0 30%, var(--teal-lit) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.4rem;
+    }
+
+    /* ── Stats row ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 60%, rgba(13,148,136,0.06));
+      pointer-events: none;
+    }
+    .stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .stat-value {
+      font-size: clamp(1.6rem, 2.5vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+    .stat-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    /* ── Main grid ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* ── Panels ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 1rem 1.25rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted2);
+    }
+    .panel-badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      background: rgba(13,148,136,0.15);
+      color: var(--teal-lit);
+      border: 1px solid rgba(13,148,136,0.3);
+    }
+    .panel-body { padding: 1.25rem; }
+
+    /* ── Map panel ── */
+    .map-panel { }
+    #us-map {
+      width: 100%;
+      line-height: 0;
+    }
+    #us-map svg { width: 100%; height: auto; display: block; }
+
+    .map-legend {
+      padding: 0.75rem 1.25rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .legend-label { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+    .legend-gradient {
+      flex: 1;
+      height: 8px;
+      border-radius: 4px;
+      background: linear-gradient(to right, #1a3a6b, #1d5c9e, #0ea5e9, #f59e0b, #ef4444);
+    }
+
+    /* ── Right column ── */
+    .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .chart-canvas-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    /* ── Tooltip ── */
+    #map-tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 100;
+      display: none;
+      background: rgba(8,13,24,0.95);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      min-width: 180px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      backdrop-filter: blur(8px);
+    }
+    .tt-state { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .tt-total { font-size: 1.1rem; font-weight: 800; color: var(--teal-lit); margin-bottom: 0.4rem; }
+    .tt-row { font-size: 0.72rem; color: var(--muted2); margin-top: 0.2rem; }
+    .tt-pct { color: var(--muted); font-size: 0.7rem; margin-top: 0.35rem; border-top: 1px solid var(--border); padding-top: 0.35rem; }
+
+    /* ── Loading overlay ── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      gap: 1rem;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border2);
+      border-top-color: var(--teal);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 0.85rem; color: var(--muted); letter-spacing: 0.05em; }
+
+    /* ── Top States Leaderboard ── */
+    .leaderboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.6rem;
+      padding: 1.25rem;
+    }
+    .lb-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      transition: border-color 0.15s;
+    }
+    .lb-row:hover { border-color: var(--border2); }
+    .lb-rank {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--muted);
+      width: 20px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .lb-state {
+      font-size: 0.85rem;
+      font-weight: 700;
+      width: 32px;
+      flex-shrink: 0;
+      color: var(--text);
+    }
+    .lb-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .lb-bar {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(to right, var(--teal), var(--amber));
+      transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .lb-count {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted2);
+      width: 50px;
+      text-align: right;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Error banner ── */
+    #error-banner {
+      display: none;
+      margin: 2rem auto;
+      max-width: 500px;
+      padding: 1rem 1.5rem;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px;
+      color: #fca5a5;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+
+    /* ── Type badge dots ── */
+    .ce-dot  { background: var(--blue); }
+    .ea-dot  { background: var(--amber); }
+    .eis-dot { background: var(--red); }
+  </style>
+</head>
+
+<body>
+
+  <!-- Loading screen -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p class="loading-text">Loading NEPA Observatory…</p>
+  </div>
+
+  <!-- Map tooltip (fixed position) -->
+  <div id="map-tooltip"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="header-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.955 11.955 0 013 10c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286z"/>
+      </svg>
+      <div>
+        <div class="header-title">VERA Observatory</div>
+        <div class="header-subtitle">NEPA Data Dashboard</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:1.25rem;">
+      <a href="/semantic.html" class="back-link" style="color:var(--teal-lit);">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        Semantic Search
+      </a>
+      <a href="/" class="back-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+        </svg>
+        Back to VERA
+      </a>
+    </div>
+  </header>
+
+  <div class="page">
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>America's Environmental Review System</h1>
+      <p>61,881 NEPA records · 60+ federal agencies · Real data from NEPATEC 2.0</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Projects</div>
+        <div class="stat-value" id="stat-projects">—</div>
+        <div class="stat-sub" id="stat-type-split">CE · EA · EIS</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Documents</div>
+        <div class="stat-value" id="stat-docs">—</div>
+        <div class="stat-sub">across all projects</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Pages</div>
+        <div class="stat-value" id="stat-pages">—</div>
+        <div class="stat-sub">of environmental review text</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Federal Agencies</div>
+        <div class="stat-value" id="stat-agencies">—</div>
+        <div class="stat-sub">distinct lead agencies</div>
+      </div>
+    </div>
+
+    <!-- Error banner -->
+    <div id="error-banner"></div>
+
+    <!-- Main grid: map + right col -->
+    <div class="main-grid">
+
+      <!-- Map panel -->
+      <div class="panel map-panel">
+        <div class="panel-header">
+          <span class="panel-title">Projects by State</span>
+          <span class="panel-badge">Choropleth</span>
+        </div>
+        <div id="us-map"></div>
+        <div class="map-legend">
+          <span class="legend-label">0</span>
+          <div class="legend-gradient"></div>
+          <span class="legend-label" id="legend-max">—</span>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div class="right-col">
+
+        <!-- Process type donut -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Review Type Split</span>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <span class="stat-dot ce-dot"></span><span style="font-size:0.65rem;color:var(--muted)">CE</span>
+              <span class="stat-dot ea-dot"></span><span style="font-size:0.65rem;color:var(--muted)">EA</span>
+              <span class="stat-dot eis-dot"></span><span style="font-size:0.65rem;color:var(--muted)">EIS</span>
+            </div>
+          </div>
+          <div class="panel-body" style="display:flex;flex-direction:column;align-items:center;">
+            <div class="chart-canvas-wrap" style="max-width:240px;">
+              <canvas id="donut-chart"></canvas>
+            </div>
+            <div id="donut-legend" style="display:flex;gap:1.25rem;margin-top:1rem;flex-wrap:wrap;justify-content:center;"></div>
+          </div>
+        </div>
+
+        <!-- Agency bar chart -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Top Agencies</span>
+            <span class="panel-badge">Projects</span>
+          </div>
+          <div class="panel-body" style="padding:1rem 1rem 0.75rem;">
+            <div class="chart-canvas-wrap">
+              <canvas id="agency-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /right-col -->
+    </div><!-- /main-grid -->
+
+    <!-- Top states leaderboard -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">State Leaderboard</span>
+        <span class="panel-badge" id="lb-count-badge">— states</span>
+      </div>
+      <div class="leaderboard-grid" id="leaderboard"></div>
+    </div>
+
+  </div><!-- /page -->
+
+  <script src="/dashboard.js"></script>
+</body>
+</html>

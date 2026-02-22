@@ -298,6 +298,13 @@ def _should_run_flag(flag_type: str, process_type: str) -> bool:
     return True
 
 
+def _normalize_excerpt(excerpt: str | None) -> str:
+    """Normalize excerpt for deduplication: strip, lowercase, collapse whitespace."""
+    if not excerpt:
+        return ""
+    return re.sub(r"\s+", " ", str(excerpt).strip().lower())
+
+
 def scan_document(
     project_id: str,
     doc_id: str,
@@ -308,14 +315,20 @@ def scan_document(
     Run all applicable flag detectors on raw document text.
     No DB writes. Used by tests and by scan_project (per-doc pass).
     Returns list of flag dicts with keys: flag_type, severity, title, description, excerpt, char_offset.
+    Deduplicated by (flag_type, normalized lowercase excerpt); first occurrence kept.
     """
     if not text:
         return []
     results: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
     for flag_type, (detector, _) in _DETECTORS.items():
         if not _should_run_flag(flag_type, process_type):
             continue
         for flag in detector(text):
+            key = (flag_type, _normalize_excerpt(flag.get("excerpt")))
+            if key in seen:
+                continue
+            seen.add(key)
             flag["project_id"] = project_id
             flag["document_id"] = doc_id
             results.append(flag)
@@ -363,5 +376,6 @@ def scan_project(
                 "description": f.get("description"),
                 "excerpt": f.get("excerpt"),
                 "char_offset": f.get("char_offset"),
+                "document_id": doc_id,
             })
     return all_flags

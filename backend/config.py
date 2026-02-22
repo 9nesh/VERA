@@ -5,6 +5,7 @@ All hardcoded values live here. Downstream modules import from this module
 rather than defining their own constants.
 """
 
+import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -36,8 +37,26 @@ OLLAMA_MODEL: str = "qwen2.5:3b"
 SOLANA_RPC_URL: str = "https://api.devnet.solana.com"
 
 # Path to a Solana keypair JSON file (array of 64 bytes).
-# Generate with: solana-keygen new --outfile ~/.config/solana/vera-devnet.json
-SOLANA_KEYPAIR_PATH: Path = Path.home() / ".config" / "solana" / "vera-devnet.json"
+# Devnet keypair committed to repo root (no mainnet value, safe to include).
+# Fund with: visit https://faucet.solana.com and paste the public key.
+SOLANA_KEYPAIR_PATH: Path = _ROOT / "devnet-keypair.json"
+
+# ---------------------------------------------------------------------------
+# OpenAI (embeddings for Actian VectorAI DB semantic search)
+# ---------------------------------------------------------------------------
+
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+
+# Embedding model — text-embedding-3-small: 1536d, fast, cost-efficient
+EMBED_MODEL: str = "text-embedding-3-small"
+EMBED_DIM: int = 1536
+
+# ---------------------------------------------------------------------------
+# Actian VectorAI DB
+# ---------------------------------------------------------------------------
+
+ACTIAN_HOST: str = os.getenv("ACTIAN_HOST", "localhost:50051")
+COLLECTION_NAME: str = "nepa_chunks"
 
 # ---------------------------------------------------------------------------
 # Signal gating

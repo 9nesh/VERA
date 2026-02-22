@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VERA — Semantic Permit Intelligence</title>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080d18;
+      --surface:   #0d1829;
+      --surface2:  #111f36;
+      --border:    #1e3050;
+      --border2:   #243a5a;
+      --teal:      #0d9488;
+      --teal-lit:  #14b8a6;
+      --teal-dim:  rgba(13,148,136,0.12);
+      --amber:     #f59e0b;
+      --red:       #ef4444;
+      --blue:      #3b82f6;
+      --purple:    #a855f7;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --muted2:    #94a3b8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(8,13,24,0.94);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand { display: flex; align-items: center; gap: .75rem; text-decoration: none; color: var(--text); }
+    .brand-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--teal);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.6)} }
+    .brand-name { font-size: 1.1rem; font-weight: 700; letter-spacing: .02em; }
+    .header-nav { display: flex; align-items: center; gap: 1.25rem; }
+    .header-nav a {
+      font-size: .8rem; font-weight: 500; color: var(--muted2);
+      text-decoration: none; transition: color .15s;
+    }
+    .header-nav a:hover { color: var(--text); }
+    .header-nav a.active { color: var(--teal-lit); }
+
+    /* ── Actian status bar ── */
+    .status-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: .55rem 2rem;
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      font-size: .75rem;
+    }
+    .status-indicator {
+      display: flex; align-items: center; gap: .5rem;
+      font-weight: 600;
+    }
+    .status-led {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+    }
+    .status-led.online  { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .status-led.offline { background: var(--red); }
+    .status-led.checking { background: var(--amber); animation: pulse 1s infinite; }
+    .status-text { color: var(--muted2); }
+    .status-sep { color: var(--border2); }
+    .status-chunks { color: var(--teal-lit); font-weight: 600; }
+    .actian-badge {
+      margin-left: auto;
+      display: flex; align-items: center; gap: .5rem;
+      background: rgba(168,85,247,.1);
+      border: 1px solid rgba(168,85,247,.3);
+      border-radius: 20px;
+      padding: .25rem .75rem;
+      font-size: .7rem; font-weight: 600; color: #c084fc;
+      letter-spacing: .04em;
+    }
+    .actian-badge svg { width: 14px; height: 14px; }
+
+    /* ── Page ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+
+    /* ── Hero ── */
+    .hero { text-align: center; margin-bottom: 2.75rem; }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: .5rem;
+      font-size: .7rem; font-weight: 600; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--teal-lit);
+      background: rgba(13,148,136,.1); border: 1px solid rgba(13,148,136,.25);
+      border-radius: 20px; padding: .3rem .8rem; margin-bottom: 1rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800; letter-spacing: -.035em;
+      background: linear-gradient(135deg, #e2e8f0 30%, var(--teal-lit) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; line-height: 1.15;
+      margin-bottom: .75rem;
+    }
+    .hero p { color: var(--muted2); font-size: .95rem; max-width: 580px; margin: 0 auto; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex; gap: .25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: .3rem;
+      margin-bottom: 1.75rem;
+      width: fit-content;
+    }
+    .tab-btn {
+      padding: .55rem 1.25rem;
+      border-radius: 9px; border: none;
+      background: transparent; color: var(--muted2);
+      font-size: .85rem; font-weight: 500;
+      cursor: pointer; transition: all .15s;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .tab-btn:hover { color: var(--text); background: var(--surface2); }
+    .tab-btn.active {
+      background: var(--teal-dim);
+      color: var(--teal-lit);
+      border: 1px solid rgba(13,148,136,.3);
+    }
+    .tab-btn .tab-icon { font-size: 1em; }
+
+    /* ── Panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Search form ── */
+    .search-form {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .search-input-wrap {
+      position: relative; margin-bottom: 1rem;
+    }
+    .search-input-wrap textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: .95rem;
+      padding: .85rem 1rem;
+      resize: vertical;
+      min-height: 80px;
+      font-family: inherit;
+      line-height: 1.5;
+      transition: border-color .2s;
+      outline: none;
+    }
+    .search-input-wrap textarea:focus { border-color: var(--teal); }
+    .search-input-wrap textarea::placeholder { color: var(--muted); }
+
+    .filters-row {
+      display: flex; gap: .75rem; flex-wrap: wrap; align-items: center;
+    }
+    .filter-group { display: flex; align-items: center; gap: .4rem; }
+    .filter-group label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; white-space: nowrap; }
+    .filter-group select,
+    .filter-group input {
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--text);
+      font-size: .82rem; padding: .4rem .65rem;
+      outline: none; transition: border-color .2s;
+    }
+    .filter-group select:focus,
+    .filter-group input:focus { border-color: var(--teal); }
+    .filter-group select option { background: #0d1829; }
+
+    .form-footer { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
+    .top-k-label { font-size: .75rem; color: var(--muted); }
+    .top-k-select {
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--text); font-size: .8rem;
+      padding: .35rem .6rem; outline: none;
+    }
+    .btn-search {
+      margin-left: auto;
+      background: var(--teal); color: #fff;
+      border: none; border-radius: 10px;
+      padding: .65rem 1.75rem;
+      font-size: .88rem; font-weight: 600;
+      cursor: pointer; transition: background .15s, transform .1s;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .btn-search:hover { background: var(--teal-lit); }
+    .btn-search:active { transform: scale(.97); }
+    .btn-search:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Results ── */
+    #results-count {
+      font-size: .78rem; color: var(--muted2);
+      margin-bottom: 1rem; display: none;
+    }
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: .85rem;
+      transition: border-color .2s;
+      position: relative; overflow: hidden;
+    }
+    .result-card:hover { border-color: var(--border2); }
+    .result-card::before {
+      content: "";
+      position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
+      background: var(--teal);
+      opacity: 0; transition: opacity .2s;
+    }
+    .result-card:hover::before { opacity: 1; }
+
+    .result-header { display: flex; align-items: flex-start; gap: .75rem; margin-bottom: .75rem; }
+    .result-rank {
+      flex-shrink: 0;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .7rem; font-weight: 700; color: var(--muted2);
+    }
+    .result-meta { flex: 1; min-width: 0; }
+    .result-title {
+      font-size: .92rem; font-weight: 600; color: var(--text);
+      margin-bottom: .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .result-badges { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .badge {
+      font-size: .65rem; font-weight: 600; padding: .18rem .55rem;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .badge-ce    { background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.3); color: #93c5fd; }
+    .badge-ea    { background: rgba(245,158,11,.15);  border: 1px solid rgba(245,158,11,.3);  color: #fcd34d; }
+    .badge-eis   { background: rgba(13,148,136,.15);  border: 1px solid rgba(13,148,136,.3);  color: var(--teal-lit); }
+    .badge-other { background: rgba(100,116,139,.15); border: 1px solid rgba(100,116,139,.3); color: var(--muted2); }
+    .badge-agency, .badge-state {
+      background: rgba(100,116,139,.1); border: 1px solid rgba(100,116,139,.2); color: var(--muted2);
+    }
+
+    .score-wrap { flex-shrink: 0; text-align: right; }
+    .score-pct {
+      font-size: 1.1rem; font-weight: 800;
+      letter-spacing: -.03em;
+      font-variant-numeric: tabular-nums;
+    }
+    .score-label { font-size: .63rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .score-bar-track {
+      width: 80px; height: 5px; border-radius: 3px;
+      background: var(--border2); margin-top: .35rem; overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--teal), var(--teal-lit));
+      transition: width .6s cubic-bezier(.4,0,.2,1);
+    }
+
+    .result-excerpt {
+      font-size: .82rem; color: var(--muted2);
+      line-height: 1.6; margin-top: .75rem;
+      background: var(--bg); border-radius: 8px;
+      padding: .75rem 1rem;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Ask panel ── */
+    .ask-form { margin-bottom: 1.5rem; }
+    .ask-form .search-form { margin-bottom: 0; }
+    .ask-question-input {
+      width: 100%;
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 10px; color: var(--text);
+      font-size: .95rem; padding: .85rem 1rem;
+      resize: vertical; min-height: 90px;
+      font-family: inherit; line-height: 1.5;
+      transition: border-color .2s; outline: none;
+    }
+    .ask-question-input:focus { border-color: var(--teal); }
+    .ask-question-input::placeholder { color: var(--muted); }
+
+    .btn-ask {
+      background: linear-gradient(135deg, #0d9488, #3b82f6);
+      color: #fff; border: none; border-radius: 10px;
+      padding: .65rem 1.75rem;
+      font-size: .88rem; font-weight: 600;
+      cursor: pointer; transition: opacity .15s, transform .1s;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .btn-ask:hover { opacity: .9; }
+    .btn-ask:active { transform: scale(.97); }
+    .btn-ask:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Answer box ── */
+    .answer-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .answer-box-header {
+      display: flex; align-items: center; gap: .6rem;
+      padding: .85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(13,148,136,.05);
+    }
+    .answer-box-header svg { color: var(--teal-lit); }
+    .answer-box-title { font-size: .78rem; font-weight: 600; color: var(--teal-lit); text-transform: uppercase; letter-spacing: .08em; }
+    .answer-text {
+      padding: 1.25rem;
+      font-size: .92rem; line-height: 1.75; color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    /* ── Sources ── */
+    .sources-header {
+      font-size: .72rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .09em;
+      margin-bottom: .75rem; margin-top: 1.5rem;
+    }
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: .85rem 1rem;
+      margin-bottom: .6rem;
+      display: flex; gap: .85rem; align-items: flex-start;
+    }
+    .source-score-pill {
+      flex-shrink: 0;
+      font-size: .72rem; font-weight: 700;
+      padding: .2rem .6rem; border-radius: 20px;
+      background: var(--teal-dim); color: var(--teal-lit);
+      border: 1px solid rgba(13,148,136,.3);
+      min-width: 48px; text-align: center;
+    }
+    .source-body { flex: 1; min-width: 0; }
+    .source-title { font-size: .84rem; font-weight: 600; color: var(--text); margin-bottom: .3rem; }
+    .source-excerpt { font-size: .78rem; color: var(--muted2); line-height: 1.55; }
+
+    /* ── Index panel ── */
+    .index-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.5rem;
+    }
+    .index-title { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
+    .index-desc { font-size: .85rem; color: var(--muted2); line-height: 1.6; margin-bottom: 1.5rem; }
+    .index-steps {
+      list-style: none; counter-reset: steps;
+      display: flex; flex-direction: column; gap: .6rem;
+      margin-bottom: 1.5rem;
+    }
+    .index-steps li {
+      counter-increment: steps;
+      display: flex; align-items: flex-start; gap: .75rem;
+      font-size: .84rem; color: var(--muted2); line-height: 1.5;
+    }
+    .index-steps li::before {
+      content: counter(steps);
+      flex-shrink: 0;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--teal-dim); border: 1px solid rgba(13,148,136,.3);
+      color: var(--teal-lit); font-size: .7rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .index-steps li code {
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 5px; padding: .05rem .4rem;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: .78rem; color: var(--teal-lit);
+    }
+
+    .index-controls { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .reset-toggle { display: flex; align-items: center; gap: .5rem; cursor: pointer; }
+    .reset-toggle input[type=checkbox] { accent-color: var(--teal); width: 15px; height: 15px; cursor: pointer; }
+    .reset-toggle span { font-size: .82rem; color: var(--muted2); }
+    .btn-index {
+      background: rgba(168,85,247,.15); color: #c084fc;
+      border: 1px solid rgba(168,85,247,.3);
+      border-radius: 10px; padding: .65rem 1.5rem;
+      font-size: .88rem; font-weight: 600;
+      cursor: pointer; transition: all .15s;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .btn-index:hover { background: rgba(168,85,247,.25); }
+    .btn-index:disabled { opacity: .4; cursor: not-allowed; }
+
+    .index-log {
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 1rem;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: .78rem; color: var(--muted2);
+      line-height: 1.7; margin-top: 1.25rem;
+      max-height: 220px; overflow-y: auto;
+      display: none;
+    }
+    .log-line { padding: .05rem 0; }
+    .log-line.ok   { color: #4ade80; }
+    .log-line.info { color: var(--muted2); }
+    .log-line.err  { color: var(--red); }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.2);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: inline-block; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Empty / error states ── */
+    .empty-state {
+      text-align: center; padding: 3rem 1rem;
+      color: var(--muted);
+    }
+    .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: .75rem; opacity: .4; }
+    .empty-state p { font-size: .88rem; }
+
+    .error-msg {
+      background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3);
+      border-radius: 10px; padding: .85rem 1rem;
+      font-size: .85rem; color: #fca5a5;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Typing cursor for answer ── */
+    .typing-cursor {
+      display: inline-block;
+      width: 2px; height: 1em;
+      background: var(--teal-lit);
+      animation: blink .7s step-end infinite;
+      vertical-align: text-bottom; margin-left: 1px;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  </style>
+</head>
+
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header>
+  <a href="/" class="brand">
+    <span class="brand-dot"></span>
+    <span class="brand-name">VERA</span>
+  </a>
+  <nav class="header-nav">
+    <a href="/">Projects</a>
+    <a href="/dashboard.html">Observatory</a>
+    <a href="/radar.html">Radar</a>
+    <a href="/semantic.html" class="active">Semantic Intelligence</a>
+  </nav>
+</header>
+
+<!-- ── Actian VectorAI DB Status Bar ──────────────────────────────────────── -->
+<div class="status-bar">
+  <div class="status-indicator">
+    <span class="status-led checking" id="status-led"></span>
+    <span id="status-text" class="status-text">Connecting…</span>
+  </div>
+  <span class="status-sep">|</span>
+  <span id="chunk-count" class="status-chunks">— chunks indexed</span>
+  <span class="status-sep">|</span>
+  <span class="status-text" id="db-version" style="color:var(--muted);">—</span>
+
+  <span class="actian-badge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/>
+    </svg>
+    Powered by Actian VectorAI DB
+  </span>
+</div>
+
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-eyebrow">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      Semantic Search &mdash; Powered by Vector Embeddings
+    </div>
+    <h1>Semantic Permit Intelligence</h1>
+    <p>Search thousands of NEPA permit documents by <em>meaning</em>, not keywords.
+       Find similar permits, extract compliance precedents, and ask questions across the entire archive
+       &mdash; all backed by Actian VectorAI DB and OpenAI embeddings.</p>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="setTab('search')" id="tab-search">
+      <span class="tab-icon">⬡</span> Semantic Search
+    </button>
+    <button class="tab-btn" onclick="setTab('ask')" id="tab-ask">
+      <span class="tab-icon">◎</span> Ask the Archive
+    </button>
+    <button class="tab-btn" onclick="setTab('index')" id="tab-index">
+      <span class="tab-icon">⊕</span> Index Documents
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- SEARCH PANEL                                                           -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="panel active" id="panel-search">
+
+    <div class="search-form">
+      <div class="search-input-wrap">
+        <textarea
+          id="search-query"
+          placeholder="Describe what you&#39;re looking for…  e.g. &quot;wetland mitigation requirements for solar farm projects in California&quot;"
+          rows="3"
+        ></textarea>
+      </div>
+
+      <div class="filters-row">
+        <div class="filter-group">
+          <label>Type</label>
+          <select id="filter-type">
+            <option value="">All</option>
+            <option value="CE">CE</option>
+            <option value="EA">EA</option>
+            <option value="EIS">EIS</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>State</label>
+          <input id="filter-state" placeholder="e.g. CA" maxlength="2" style="width:70px;" />
+        </div>
+        <div class="filter-group">
+          <label>Agency</label>
+          <input id="filter-agency" placeholder="e.g. BLM" style="width:120px;" />
+        </div>
+
+        <div class="form-footer" style="margin-top:0;margin-left:auto;">
+          <label class="top-k-label">Results</label>
+          <select class="top-k-select" id="search-topk">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+          </select>
+          <button class="btn-search" id="btn-search" onclick="runSearch()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            Search
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="results-count"></div>
+    <div id="search-results"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- ASK PANEL                                                              -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="panel" id="panel-ask">
+
+    <div class="search-form" style="margin-bottom:1.5rem;">
+      <div class="search-input-wrap">
+        <textarea
+          id="ask-question"
+          class="ask-question-input"
+          placeholder="Ask anything about NEPA compliance…  e.g. &quot;What are the most common endangered species issues in EIS documents for transmission line projects?&quot;"
+          rows="3"
+        ></textarea>
+      </div>
+      <div class="form-footer">
+        <div class="filter-group">
+          <label>Filter Type</label>
+          <select id="ask-type">
+            <option value="">All</option>
+            <option value="CE">CE</option>
+            <option value="EA">EA</option>
+            <option value="EIS">EIS</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Sources</label>
+          <select class="top-k-select" id="ask-topk">
+            <option value="5">5 chunks</option>
+            <option value="8" selected>8 chunks</option>
+            <option value="12">12 chunks</option>
+          </select>
+        </div>
+        <button class="btn-ask" id="btn-ask" onclick="runAsk()" style="margin-left:auto;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
+          </svg>
+          Ask the Archive
+        </button>
+      </div>
+    </div>
+
+    <div id="ask-output" style="display:none;">
+      <div class="answer-box" id="answer-box">
+        <div class="answer-box-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+          </svg>
+          <span class="answer-box-title">VERA AI — Grounded on semantically retrieved excerpts</span>
+        </div>
+        <div class="answer-text" id="answer-text"></div>
+      </div>
+
+      <div class="sources-header">Retrieved Context — Actian VectorAI DB</div>
+      <div id="ask-sources"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- INDEX PANEL                                                            -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="panel" id="panel-index">
+    <div class="index-box">
+      <div class="index-title">Index NEPA Documents into Actian VectorAI DB</div>
+      <p class="index-desc">
+        This pipeline reads all documents from the VERA SQLite database, splits them into
+        600-character chunks with 80-character overlap, embeds each chunk using
+        <strong style="color:var(--text)">OpenAI text-embedding-3-small</strong> (1536d),
+        and stores the vectors in Actian VectorAI DB for fast K-NN semantic search.
+      </p>
+
+      <ol class="index-steps">
+        <li>Ensure Actian VectorAI DB is running: <code>docker compose up -d</code></li>
+        <li>Set your OpenAI key: <code>export OPENAI_API_KEY=sk-…</code></li>
+        <li>Ingest NEPA documents into SQLite first (run the ingest script)</li>
+        <li>Click <strong style="color:var(--text)">Start Indexing</strong> below — or run
+            <code>python scripts/index_to_vectorai.py --reset</code> from the CLI</li>
+      </ol>
+
+      <div class="index-controls">
+        <label class="reset-toggle">
+          <input type="checkbox" id="reset-toggle" />
+          <span>Reset collection before indexing (re-embeds everything)</span>
+        </label>
+        <button class="btn-index" id="btn-index" onclick="triggerIndex()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+          Start Indexing
+        </button>
+      </div>
+
+      <div class="index-log" id="index-log"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── JavaScript ──────────────────────────────────────────────────────────── -->
+<script>
+  const API = '';
+
+  // ── Tab switching ──────────────────────────────────────────────────────
+  function setTab(name) {
+    ['search', 'ask', 'index'].forEach(t => {
+      document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+      document.getElementById(`panel-${t}`).classList.toggle('active', t === name);
+    });
+  }
+
+  // ── Status bar ─────────────────────────────────────────────────────────
+  async function loadStatus() {
+    const led  = document.getElementById('status-led');
+    const txt  = document.getElementById('status-text');
+    const cnt  = document.getElementById('chunk-count');
+    const ver  = document.getElementById('db-version');
+    try {
+      const r = await fetch(`${API}/api/semantic/status`);
+      const d = await r.json();
+      cnt.textContent = `${(d.indexed_chunks || 0).toLocaleString()} chunks indexed`;
+      if (d.actian_online) {
+        led.className = 'status-led online';
+        txt.textContent = 'Actian VectorAI DB: ONLINE';
+        ver.textContent = `v${d.db_version || '—'}`;
+      } else if (d.online) {
+        led.className = 'status-led online';
+        led.style.background = '#f59e0b';
+        led.style.boxShadow = '0 0 6px #f59e0b88';
+        txt.textContent = 'Actian VectorAI DB: local fallback';
+        ver.textContent = 'numpy cosine store';
+      } else {
+        led.className = 'status-led offline';
+        txt.textContent = 'Vector store: OFFLINE';
+        ver.textContent = d.error ? d.error.slice(0, 60) : 'Cannot connect';
+      }
+    } catch {
+      led.className = 'status-led offline';
+      txt.textContent = 'Vector store: OFFLINE';
+    }
+  }
+  loadStatus();
+  setInterval(loadStatus, 15000);
+
+  // ── Score color ────────────────────────────────────────────────────────
+  function scoreColor(s) {
+    if (s >= .85) return '#14b8a6';
+    if (s >= .7)  return '#22c55e';
+    if (s >= .55) return '#f59e0b';
+    return '#94a3b8';
+  }
+
+  // ── Process type badge ─────────────────────────────────────────────────
+  function ptBadge(pt) {
+    const cls = { CE: 'badge-ce', EA: 'badge-ea', EIS: 'badge-eis' }[pt] || 'badge-other';
+    return pt ? `<span class="badge ${cls}">${pt}</span>` : '';
+  }
+
+  // ── Render search result card ──────────────────────────────────────────
+  function renderResult(r, idx) {
+    const score = r.score ?? 0;
+    const pct   = Math.round(score * 100);
+    const color = scoreColor(score);
+    const excerpt = (r.text || '').trim().slice(0, 340);
+
+    return `
+      <div class="result-card">
+        <div class="result-header">
+          <div class="result-rank">${idx + 1}</div>
+          <div class="result-meta">
+            <div class="result-title">${esc(r.project_title || r.project_id || '—')}</div>
+            <div class="result-badges">
+              ${ptBadge(r.process_type)}
+              ${r.agency ? `<span class="badge badge-agency">${esc(r.agency)}</span>` : ''}
+              ${r.state  ? `<span class="badge badge-state">${esc(r.state)}</span>`  : ''}
+              ${r.doc_type ? `<span class="badge badge-other">${esc(r.doc_type)}</span>` : ''}
+            </div>
+          </div>
+          <div class="score-wrap">
+            <div class="score-pct" style="color:${color}">${pct}%</div>
+            <div class="score-label">similarity</div>
+            <div class="score-bar-track">
+              <div class="score-bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${color}99,${color})"></div>
+            </div>
+          </div>
+        </div>
+        <div class="result-excerpt">${esc(excerpt)}${excerpt.length < (r.text || '').trim().length ? '…' : ''}</div>
+      </div>`;
+  }
+
+  // ── Semantic Search ────────────────────────────────────────────────────
+  async function runSearch() {
+    const query = document.getElementById('search-query').value.trim();
+    if (!query) return;
+
+    const btn   = document.getElementById('btn-search');
+    const res   = document.getElementById('search-results');
+    const count = document.getElementById('results-count');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Searching…';
+    res.innerHTML = '';
+    count.style.display = 'none';
+
+    try {
+      const body = {
+        query,
+        top_k:        parseInt(document.getElementById('search-topk').value),
+        process_type: document.getElementById('filter-type').value  || null,
+        state:        document.getElementById('filter-state').value.toUpperCase() || null,
+        agency:       document.getElementById('filter-agency').value || null,
+      };
+
+      const r = await fetch(`${API}/api/semantic/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        res.innerHTML = `<div class="error-msg">Error: ${esc(err.detail || 'Search failed')}</div>`;
+        return;
+      }
+
+      const results = await r.json();
+
+      if (!results.length) {
+        res.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">◎</div>
+            <p>No results found. Try a different query or check that documents are indexed.</p>
+          </div>`;
+        return;
+      }
+
+      count.textContent = `${results.length} semantically similar document sections`;
+      count.style.display = 'block';
+      res.innerHTML = results.map((r, i) => renderResult(r, i)).join('');
+
+    } catch (err) {
+      res.innerHTML = `<div class="error-msg">Error: ${esc(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg> Search`;
+    }
+  }
+
+  // ── Ask the Archive ────────────────────────────────────────────────────
+  async function runAsk() {
+    const question = document.getElementById('ask-question').value.trim();
+    if (!question) return;
+
+    const btn    = document.getElementById('btn-ask');
+    const output = document.getElementById('ask-output');
+    const ansEl  = document.getElementById('answer-text');
+    const srcEl  = document.getElementById('ask-sources');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Retrieving & reasoning…';
+    output.style.display = 'block';
+    ansEl.innerHTML = '<span class="typing-cursor"></span>';
+    srcEl.innerHTML = '';
+
+    try {
+      const body = {
+        question,
+        top_k:        parseInt(document.getElementById('ask-topk').value),
+        process_type: document.getElementById('ask-type').value || null,
+      };
+
+      const r = await fetch(`${API}/api/semantic/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const d = await r.json();
+
+      if (!r.ok) {
+        ansEl.textContent = `Error: ${d.detail || 'Ask failed'}`;
+        return;
+      }
+
+      // Typewriter effect for the answer
+      await typewrite(ansEl, d.answer || 'No answer generated.');
+
+      // Render sources
+      if (d.sources && d.sources.length) {
+        srcEl.innerHTML = d.sources.map(s => `
+          <div class="source-card">
+            <div class="source-score-pill">${Math.round((s.score ?? 0) * 100)}%</div>
+            <div class="source-body">
+              <div class="source-title">
+                ${esc(s.project_title || '—')}
+                ${ptBadge(s.process_type)}
+                ${s.state ? `<span class="badge badge-state" style="margin-left:.25rem;">${esc(s.state)}</span>` : ''}
+              </div>
+              <div class="source-excerpt">${esc((s.excerpt || '').trim())}${(s.excerpt||'').length >= 300 ? '…' : ''}</div>
+            </div>
+          </div>`).join('');
+      }
+
+      // Refresh status to show updated chunk count
+      loadStatus();
+
+    } catch (err) {
+      ansEl.textContent = `Error: ${err.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
+        </svg> Ask the Archive`;
+    }
+  }
+
+  // ── Typewriter ─────────────────────────────────────────────────────────
+  async function typewrite(el, text) {
+    el.innerHTML = '';
+    const cursor = document.createElement('span');
+    cursor.className = 'typing-cursor';
+    el.appendChild(cursor);
+    const chars = text.split('');
+    const CHAR_DELAY = Math.max(4, Math.min(18, 1200 / chars.length));
+    for (const ch of chars) {
+      el.insertBefore(document.createTextNode(ch), cursor);
+      await delay(CHAR_DELAY);
+    }
+    cursor.remove();
+  }
+
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+
+  // ── Index trigger ──────────────────────────────────────────────────────
+  let pollInterval = null;
+
+  async function triggerIndex() {
+    const btn   = document.getElementById('btn-index');
+    const log   = document.getElementById('index-log');
+    const reset = document.getElementById('reset-toggle').checked;
+
+    btn.disabled = true;
+    log.style.display = 'block';
+    log.innerHTML = addLogLine('Starting indexing pipeline…', 'info');
+
+    try {
+      const r = await fetch(`${API}/api/semantic/index`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset }),
+      });
+      const d = await r.json();
+
+      if (!r.ok) {
+        addLog(log, `Error: ${d.detail}`, 'err');
+        btn.disabled = false;
+        return;
+      }
+
+      addLog(log, `Indexing started${reset ? ' (collection reset)' : ''}…`, 'info');
+      addLog(log, 'Embedding document chunks via OpenAI text-embedding-3-small…', 'info');
+      addLog(log, 'Upserting vectors into Actian VectorAI DB (HNSW index)…', 'info');
+
+      pollInterval = setInterval(async () => {
+        const pr = await fetch(`${API}/api/semantic/indexing-status`);
+        const pd = await pr.json();
+        if (!pd.in_progress) {
+          clearInterval(pollInterval);
+          const result = pd.last_result || {};
+          if (result.status === 'complete') {
+            addLog(log, `Done! ${result.indexed} chunks from ${result.documents} documents indexed.`, 'ok');
+            addLog(log, `Collection '${result.collection || 'nepa_chunks'}' ready for semantic search.`, 'ok');
+          } else if (result.status === 'error') {
+            addLog(log, `Error: ${result.error}`, 'err');
+          } else if (result.status === 'no_documents') {
+            addLog(log, 'No documents with text content found in the database.', 'err');
+          }
+          btn.disabled = false;
+          loadStatus();
+        }
+      }, 3000);
+
+    } catch (err) {
+      addLog(log, `Error: ${err.message}`, 'err');
+      btn.disabled = false;
+    }
+  }
+
+  function addLogLine(msg, cls) {
+    return `<div class="log-line ${cls}">[${timestamp()}] ${esc(msg)}</div>`;
+  }
+
+  function addLog(el, msg, cls) {
+    el.innerHTML += addLogLine(msg, cls);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function timestamp() {
+    return new Date().toLocaleTimeString('en-US', { hour12: false });
+  }
+
+  // ── Enter key shortcuts ────────────────────────────────────────────────
+  document.getElementById('search-query').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runSearch(); }
+  });
+  document.getElementById('ask-question').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runAsk(); }
+  });
+
+  // ── Escape helper ──────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>

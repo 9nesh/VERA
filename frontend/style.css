@@ -1,0 +1,61 @@
+/* VERA — supplemental CSS
+ * Tailwind handles layout/color/typography. Only define what Tailwind can't.
+ */
+
+/* Custom color utilities not in Tailwind config (matched to tailwind.config extension) */
+.bg-navy          { background-color: #0f1c2e; }
+.bg-navy-light    { background-color: #162338; }
+.text-vera-teal   { color: #0d9488; }
+.bg-vera-teal     { background-color: #0d9488; }
+.hover\:bg-vera-teal-dark:hover { background-color: #0f766e; }
+.ring-vera-teal   { --tw-ring-color: #0d9488; }
+.focus\:ring-vera-teal:focus   { --tw-ring-color: #0d9488; }
+.border-vera-teal { border-color: #0d9488; }
+.hover\:border-vera-teal:hover { border-color: #0d9488; }
+.hover\:text-vera-teal-dark:hover { color: #0f766e; }
+.text-vera-teal-dark { color: #0f766e; }
+
+/* Spinner — single ring animation */
+.vera-spinner {
+  display: inline-block;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: vera-spin 0.7s linear infinite;
+}
+
+@keyframes vera-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Chat typing dots */
+.vera-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #94a3b8;
+  border-radius: 50%;
+  animation: vera-bounce 1s infinite;
+}
+
+@keyframes vera-bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40%           { transform: translateY(-5px); }
+}
+
+/* Smooth Alpine transition helpers */
+[x-cloak] { display: none !important; }
+
+/* Scrollbar — slim for the chat sidebar */
+.overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.overflow-y-auto::-webkit-scrollbar       { width: 5px; }
+.overflow-y-auto::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+
+/* Mono excerpt pre — prevent horizontal scrollbar from blowing the card open */
+pre.overflow-x-auto {
+  max-height: 12rem;
+  overflow-y: auto;
+}

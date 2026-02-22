@@ -1,5 +1,31 @@
-# Plan files 
+# Plan files
 *.plan.md
 
 # Python
 .venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Secrets / keys — NEVER commit
+devnet-keypair.json
+*.key
+*.pem
+.env
+.env.*
+
+# Large generated / binary artifacts
+nepa.db
+index/
+nepatec_data/
+dashboard_cache.json
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
+databricks.md
