@@ -15,6 +15,9 @@ _ROOT = Path(__file__).parent.parent  # repo root
 
 DB_PATH: Path = _ROOT / "nepa.db"
 
+# NEPATEC JSONL data (CE, EA, EIS) — ingest discovers *.jsonl under subdirs
+NEPATEC_DATA_DIR: Path = _ROOT / "nepatec_data"
+
 # FAISS index files written/read by embedder.py
 INDEX_DIR: Path = _ROOT / "index"
 

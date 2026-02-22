@@ -1,2 +1,5 @@
 # Plan files 
 *.plan.md
+
+# Python
+.venv
